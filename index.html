@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>АС: Торговый на районе</title>
 <style>
   * { box-sizing: border-box; }
@@ -14,16 +15,24 @@
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none; /* убирает лупу/меню "Копировать" на iOS при долгом тапе */
+    overscroll-behavior: none;
   }
-  #wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+  #wrap {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; width: 100%;
+  }
   #gameContainer {
     position: relative;
     box-shadow: 0 0 50px rgba(38,224,176,0.12), 0 0 40px rgba(0,0,0,0.7);
     border: 3px solid #26e0b0;
     border-radius: 8px;
     overflow: hidden;
+    /* адаптация под экран: вписываем игру целиком (860x560) в доступную ширину/высоту,
+       сохраняя пропорции — работает и на телефоне в портретной, и в альбомной ориентации */
+    width: min(860px, 100vw, calc((100vh - 12px) * 860 / 560));
+    aspect-ratio: 860 / 560;
   }
-  canvas { display: block; background: #33452f; }
+  canvas { display: block; width: 100%; height: 100%; background: #33452f; }
   .overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -87,28 +96,30 @@
     pointer-events: none; touch-action: none;
   }
   #joyBase {
-    position: absolute; left: 24px; bottom: 24px;
-    width: 110px; height: 110px; border-radius: 50%;
+    position: absolute; left: 4%; bottom: 5%;
+    width: clamp(64px, 15vw, 110px); height: clamp(64px, 15vw, 110px); border-radius: 50%;
     background: rgba(20,20,20,0.5); border: 2px solid #26e0b077;
     pointer-events: all; touch-action: none;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   #joyKnob {
-    position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
-    margin: -23px 0 0 -23px; border-radius: 50%;
+    position: absolute; left: 50%; top: 50%;
+    width: 42%; height: 42%;
+    transform: translate(-50%,-50%); border-radius: 50%;
     background: rgba(38,224,176,0.55); border: 2px solid #26e0b0;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .actionBtn {
-    position: absolute; bottom: 34px; width: 74px; height: 74px; border-radius: 50%;
+    position: absolute; bottom: 6%;
+    width: clamp(46px, 10vw, 74px); height: clamp(46px, 10vw, 74px); border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 900; font-size: 13px; color: #141414;
+    font-weight: 900; font-size: clamp(9px, 1.8vw, 13px); color: #141414;
     background: rgba(38,224,176,0.8); border: 2px solid #0f7a5c;
     pointer-events: all; touch-action: none;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
-  #btnFight { right: 24px; }
-  #btnShake { right: 112px; }
+  #btnFight { right: 4%; }
+  #btnShake { right: calc(4% + clamp(46px, 10vw, 74px) + 10px); }
   .actionBtn:active { background: rgba(255,255,255,0.85); }
 </style>
 </head>
@@ -322,12 +333,12 @@
     const maxR = rect.width/2;
     const dist = Math.hypot(dx,dy);
     if (dist > maxR){ dx = dx/dist*maxR; dy = dy/dist*maxR; }
-    joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     joyVector = { x: dx/maxR, y: dy/maxR };
   }
   function joyReset(){
     joyVector = { x: 0, y: 0 };
-    joyKnob.style.transform = 'translate(0,0)';
+    joyKnob.style.transform = 'translate(-50%, -50%)';
   }
   joyBase.addEventListener('pointerdown', e => {
     ensureAudio();
