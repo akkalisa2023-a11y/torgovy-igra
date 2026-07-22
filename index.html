@@ -12,6 +12,8 @@
     color: #eee;
     overflow: hidden;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none; /* убирает лупу/меню "Копировать" на iOS при долгом тапе */
   }
   #wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
   #gameContainer {
@@ -76,6 +78,10 @@
   .letterSlot.active { border-color: #26e0b0; box-shadow: 0 0 12px #26e0b088; }
   .note { font-size: 11px; color: #6f7fa0; margin-top: 10px; max-width: 420px; }
 
+  #touchControls, #touchControls * {
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+  }
   #touchControls {
     position: absolute; left: 0; bottom: 0; width: 100%; height: 100%;
     pointer-events: none; touch-action: none;
@@ -85,18 +91,21 @@
     width: 110px; height: 110px; border-radius: 50%;
     background: rgba(20,20,20,0.5); border: 2px solid #26e0b077;
     pointer-events: all; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   #joyKnob {
     position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
     margin: -23px 0 0 -23px; border-radius: 50%;
     background: rgba(38,224,176,0.55); border: 2px solid #26e0b0;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .actionBtn {
     position: absolute; bottom: 34px; width: 74px; height: 74px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-weight: 900; font-size: 13px; color: #141414;
     background: rgba(38,224,176,0.8); border: 2px solid #0f7a5c;
-    pointer-events: all; touch-action: none; user-select: none;
+    pointer-events: all; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   #btnFight { right: 24px; }
   #btnShake { right: 112px; }
@@ -192,6 +201,10 @@
   const joyKnob = document.getElementById('joyKnob');
   const btnShake = document.getElementById('btnShake');
   const btnFight = document.getElementById('btnFight');
+
+  // подстраховка от вызова меню "Копировать"/выделения текста при долгом тапе по кнопкам
+  touchControls.addEventListener('contextmenu', e => e.preventDefault());
+  touchControls.addEventListener('selectstart', e => e.preventDefault());
 
   const RUN_TIME = 90;
   const SHOP_DEFS = [
@@ -452,16 +465,39 @@
         }
       }
     }
-    // roads
-    ctx.fillStyle = '#333333';
+    // roads — тёмное полотно + светлые кромки-бордюры + пунктирная осевая линия
+    ctx.fillStyle = '#2b2b2e';
     for (const rx of roadsX) ctx.fillRect(rx,0,roadThick,H);
     for (const ry of roadsY) ctx.fillRect(0,ry,W,roadThick);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1.5;
+    for (const rx of roadsX){
+      ctx.beginPath(); ctx.moveTo(rx,0); ctx.lineTo(rx,H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rx+roadThick,0); ctx.lineTo(rx+roadThick,H); ctx.stroke();
+    }
+    for (const ry of roadsY){
+      ctx.beginPath(); ctx.moveTo(0,ry); ctx.lineTo(W,ry); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,ry+roadThick); ctx.lineTo(W,ry+roadThick); ctx.stroke();
+    }
     ctx.strokeStyle = '#26e0b0';
     ctx.setLineDash([14,12]);
     ctx.lineWidth = 2;
     for (const rx of roadsX){ ctx.beginPath(); ctx.moveTo(rx+roadThick/2,0); ctx.lineTo(rx+roadThick/2,H); ctx.stroke(); }
     for (const ry of roadsY){ ctx.beginPath(); ctx.moveTo(0,ry+roadThick/2); ctx.lineTo(W,ry+roadThick/2); ctx.stroke(); }
     ctx.setLineDash([]);
+
+    // верхняя полоса — тротуар-плаза вместо голого асфальта (убирает ощущение "пробела" сверху)
+    ctx.fillStyle = '#6b7280';
+    ctx.fillRect(0,0,W,46);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    for (let tx=0; tx<W; tx+=30){ ctx.beginPath(); ctx.moveTo(tx,0); ctx.lineTo(tx,46); ctx.stroke(); }
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    const topProps = ['🌳','💡','🪑','🌳','💡','🪑'];
+    for (let i=0;i<topProps.length;i++){
+      ctx.fillText(topProps[i], (i+0.5)*(W/topProps.length), 30);
+    }
   }
   generateCity();
 
@@ -470,32 +506,21 @@
   function makeAmbient(){
     ambient = [];
     const carEmojis = ['🚗','🚙','🚕'];
-    for (let i=0;i<6;i++){
-      const horiz = Math.random() < 0.5;
+    // машины — только по горизонтальным дорогам: боковой силуэт эмодзи в вертикальном
+    // развороте выглядел криво ("едет боком"), поэтому такси теперь ездят только слева-направо
+    for (let i=0;i<7;i++){
       const dir = Math.random() < 0.5 ? 1 : -1;
       const speed = 40 + Math.random()*35;
       const emoji = carEmojis[Math.floor(Math.random()*carEmojis.length)];
-      if (horiz){
-        const road = roadsY[Math.floor(Math.random()*roadsY.length)];
-        const lane = road + (Math.random() < 0.5 ? roadThick*0.28 : roadThick*0.72);
-        ambient.push({ kind:'car', axis:'x', x: Math.random()*W, y: lane, dir, speed, emoji });
-      } else {
-        const road = roadsX[Math.floor(Math.random()*roadsX.length)];
-        const lane = road + (Math.random() < 0.5 ? roadThick*0.28 : roadThick*0.72);
-        ambient.push({ kind:'car', axis:'y', x: lane, y: Math.random()*H, dir, speed, emoji });
-      }
+      const road = roadsY[Math.floor(Math.random()*roadsY.length)];
+      const lane = road + (Math.random() < 0.5 ? roadThick*0.28 : roadThick*0.72);
+      ambient.push({ kind:'car', axis:'x', x: Math.random()*W, y: lane, dir, speed, emoji });
     }
     for (let i=0;i<3;i++){
-      const horiz = Math.random() < 0.5;
       const dir = Math.random() < 0.5 ? 1 : -1;
       const speed = 24 + Math.random()*12;
-      if (horiz){
-        const road = roadsY[Math.floor(Math.random()*roadsY.length)];
-        ambient.push({ kind:'bike', axis:'x', x: Math.random()*W, y: road - 8, dir, speed, emoji:'🚴' });
-      } else {
-        const road = roadsX[Math.floor(Math.random()*roadsX.length)];
-        ambient.push({ kind:'bike', axis:'y', x: road - 8, y: Math.random()*H, dir, speed, emoji:'🚴' });
-      }
+      const road = roadsY[Math.floor(Math.random()*roadsY.length)];
+      ambient.push({ kind:'bike', axis:'x', x: Math.random()*W, y: road - 8, dir, speed, emoji:'🚴' });
     }
     const pedEmojis = ['🚶','🚶‍♀️','🧍'];
     for (let i=0;i<7;i++){
@@ -507,23 +532,29 @@
         emoji: pedEmojis[Math.floor(Math.random()*pedEmojis.length)]
       });
     }
+    const petEmojis = ['🐕','🐈'];
+    for (let i=0;i<4;i++){
+      ambient.push({
+        kind:'pet',
+        x: 30 + Math.random()*(W-60), y: 60 + Math.random()*(H-100),
+        vx: (Math.random()*2-1)*26, vy: (Math.random()*2-1)*26,
+        retimer: 1 + Math.random()*2.5,
+        emoji: petEmojis[Math.floor(Math.random()*petEmojis.length)]
+      });
+    }
   }
   function updateAmbient(dt){
     for (const a of ambient){
       if (a.kind === 'car' || a.kind === 'bike'){
-        if (a.axis === 'x'){
-          a.x += a.dir * a.speed * dt;
-          if (a.x > W+24) a.x = -24; else if (a.x < -24) a.x = W+24;
-        } else {
-          a.y += a.dir * a.speed * dt;
-          if (a.y > H+24) a.y = -24; else if (a.y < -24) a.y = H+24;
-        }
-      } else if (a.kind === 'ped'){
+        a.x += a.dir * a.speed * dt;
+        if (a.x > W+24) a.x = -24; else if (a.x < -24) a.x = W+24;
+      } else if (a.kind === 'ped' || a.kind === 'pet'){
         a.retimer -= dt;
         if (a.retimer <= 0){
-          a.vx = (Math.random()*2-1)*16;
-          a.vy = (Math.random()*2-1)*16;
-          a.retimer = 2 + Math.random()*3;
+          const spread = a.kind === 'pet' ? 26 : 16;
+          a.vx = (Math.random()*2-1)*spread;
+          a.vy = (Math.random()*2-1)*spread;
+          a.retimer = (a.kind === 'pet' ? 1 : 2) + Math.random()*(a.kind === 'pet' ? 2.5 : 3);
         }
         a.x = Math.max(20, Math.min(W-20, a.x + a.vx*dt));
         a.y = Math.max(60, Math.min(H-20, a.y + a.vy*dt));
@@ -536,12 +567,13 @@
       ctx.save();
       ctx.translate(a.x, a.y);
       if (a.kind === 'car' || a.kind === 'bike'){
-        let angle = 0;
-        if (a.axis === 'x') angle = a.dir > 0 ? 0 : Math.PI;
-        else angle = a.dir > 0 ? Math.PI/2 : -Math.PI/2;
-        ctx.rotate(angle);
+        // едут только по горизонтали — просто зеркалим по ходу движения, без переворота вверх ногами
+        if (a.dir < 0) ctx.scale(-1, 1);
         ctx.font = (a.kind === 'car' ? '36px' : '30px') + ' sans-serif';
         ctx.fillText(a.emoji, 0, 10);
+      } else if (a.kind === 'pet'){
+        ctx.font = '24px sans-serif';
+        ctx.fillText(a.emoji, 0, 8);
       } else {
         // пешеходы — в том же масштабе, что и игрок/конкуренты, а не мелкими точками
         ctx.font = '34px sans-serif';
@@ -987,7 +1019,7 @@
   }
 
   function drawChestLogo(type, r){
-    const s = r * 1.05; // крупнее, чтобы значок было видно издалека
+    const s = r * 0.7; // заметно, но не крупнее самого человечка
     const cy = r * 0.02;
     if (type === 'megafon'){
       // МегаФон — белый круг на зелёной футболке (их фирменный знак)
