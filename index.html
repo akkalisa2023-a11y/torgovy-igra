@@ -387,26 +387,106 @@
     r = Math.max(0,Math.min(255,r)); g = Math.max(0,Math.min(255,g)); b = Math.max(0,Math.min(255,b));
     return '#' + (0x1000000 + r*0x10000 + g*0x100 + b).toString(16).slice(1);
   }
+  // куст/дерево-крона в виде кластера кругов — как на векторных картах города
+  function drawBush(cx, cy, r, color){
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(cx, cy+r*0.55, r*1.1, r*0.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(cx-r*0.55, cy+r*0.15, r*0.7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+r*0.55, cy+r*0.15, r*0.7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.25, r*0.85, 0, Math.PI*2); ctx.fill();
+  }
+  // лавочка (не стул) — рисуем сами, вид под тем же углом, что и точки/герои
+  function drawBench(x, y){
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(x, y+8, 13, 3.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#6b4a2e';
+    ctx.fillRect(x-12, y-8, 24, 3.5);
+    ctx.fillRect(x-12, y-1, 24, 4);
+    ctx.fillStyle = '#4a3320';
+    ctx.fillRect(x-11, y+3, 2.5, 6);
+    ctx.fillRect(x+8.5, y+3, 2.5, 6);
+  }
+  // здание "под нашим углом" — вид спереди/сверху-сбоку, как торговые точки: тень-эллипс, стена, крыша
+  function drawStandingBuilding(bx, by, s){
+    const x = bx+s.cx, y = by+s.gy;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.ellipse(x, y+3, s.w*0.55, 6, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = s.wall;
+    roundRect(x-s.w/2, y-s.wallH, s.w, s.wallH, 3); ctx.fill();
+    if (s.windows){
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      const cols = Math.max(1, Math.round(s.w/16));
+      const cw = (s.w-10)/cols;
+      for (let c=0;c<cols;c++){
+        ctx.fillRect(x-s.w/2+5+c*cw, y-s.wallH+7, cw-4, s.wallH*0.26);
+        if (s.wallH > 30) ctx.fillRect(x-s.w/2+5+c*cw, y-s.wallH*0.52, cw-4, s.wallH*0.26);
+      }
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(x-s.w/2, y-s.wallH, s.w, s.wallH);
+    ctx.fillStyle = s.roof;
+    if (s.style === 'peak'){
+      ctx.beginPath();
+      ctx.moveTo(x-s.w/2-3, y-s.wallH); ctx.lineTo(x+s.w/2+3, y-s.wallH);
+      ctx.lineTo(x, y-s.wallH-s.roofH);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x-s.w/2-4, y-s.wallH); ctx.lineTo(x+s.w/2+4, y-s.wallH);
+      ctx.lineTo(x+s.w*0.36, y-s.wallH-s.roofH); ctx.lineTo(x-s.w*0.36, y-s.wallH-s.roofH);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    if (s.icon){
+      ctx.font = `${Math.round(s.wallH*0.5)}px sans-serif`;
+      ctx.fillText(s.icon, x, y-s.wallH*0.32);
+    }
+  }
   function generateCity(){
     cityBlocks = [];
     const xBands = [[6,140],[174,430],[464,720],[754,W-6]];
     const yBands = [[46,110],[144,260],[294,410],[444,H-6]];
-    const buildingColors = ['#3a3f4d','#454b5c','#3f4a3f','#4a3f3f','#40474a','#4a4536'];
+    const grassColors = ['#5a9c4c','#63a355','#549048'];
+    const roofColors = ['#c0392b','#d97d34','#4f6f9e','#8a8f78','#7a5c3e','#b2482f'];
+    const houseWalls = ['#d8c9a3','#c9b896','#cdd6d9','#d9c3ab'];
+    const wallColors = ['#3a3f4d','#454b5c','#3f4a3f','#4a3f3f','#40474a'];
     const carEmojis = ['🚗','🚙','🚕'];
-    const houseEmojis = ['🏠','🏡'];
     let i = 0;
     for (const xb of xBands){
       for (const yb of yBands){
         i++;
         const roll = Math.random();
         const w = xb[1]-xb[0], h = yb[1]-yb[0];
-        const block = { x:xb[0], y:yb[0], w, h, type: 'building', color: buildingColors[i % buildingColors.length] };
+        const block = { x:xb[0], y:yb[0], w, h, type: 'building', color: grassColors[i % grassColors.length] };
         if (roll < 0.14){
-          block.type = 'park'; block.color = '#2f5233';
+          // парк — газон с кустами/деревьями сеткой и лавочками
+          block.type = 'park'; block.color = grassColors[(i+1) % grassColors.length];
+          block.bushes = [];
+          const bCols = Math.max(2, Math.round(w/50));
+          const bRows = Math.max(2, Math.round(h/46));
+          for (let ty=0; ty<bRows; ty++){
+            for (let tx=0; tx<bCols; tx++){
+              if (Math.random() < 0.62){
+                block.bushes.push({
+                  x: (tx+0.5)*(w/bCols) + (Math.random()*12-6),
+                  y: (ty+0.5)*(h/bRows) + (Math.random()*10-5),
+                  r: 9 + Math.random()*6
+                });
+              }
+            }
+          }
+          block.benches = [];
+          const nb = 1 + Math.floor((w*h)/9000);
+          for (let bb=0; bb<nb; bb++){
+            block.benches.push({ x: 10+Math.random()*(w-20), y: 10+Math.random()*(h-20) });
+          }
         } else if (roll < 0.24){
-          block.type = 'lot'; block.color = '#3b3b3b';
+          // парковка — асфальт с разметкой и машинами
+          block.type = 'lot'; block.color = '#767b80';
           block.parkedCars = [];
-          const n = 1 + Math.floor(Math.random()*2);
+          const n = Math.max(2, Math.floor((w*h)/3200));
           for (let c=0;c<n;c++){
             block.parkedCars.push({
               x: block.x + 16 + Math.random()*(w-32),
@@ -416,36 +496,56 @@
             });
           }
         } else if (roll < 0.36){
-          // фонтан на площади — просто фон, для разнообразия картинки
-          block.type = 'fountain'; block.color = '#8a8f78';
-        } else if (roll < 0.56){
-          // крупный ТЦ на фоне (декоративный, не игровая точка)
-          block.type = 'mall_bg'; block.color = '#5a4a2e';
-        } else if (roll < 0.76){
-          // жилые домики вместо сплошной стены с окнами
-          block.type = 'house'; block.color = '#40473a';
-          block.houses = [];
-          const n = 2 + Math.floor(Math.random()*2);
-          for (let hh=0; hh<n; hh++){
-            block.houses.push({
-              x: 14 + Math.random()*(w-28),
-              y: 14 + Math.random()*(h-28),
-              emoji: houseEmojis[Math.floor(Math.random()*houseEmojis.length)]
-            });
+          // площадь с фонтаном — мощёная плитка + кусты по краям (фонтан всегда виден в этих кварталах)
+          block.type = 'fountain'; block.color = '#c9c2a8';
+          block.plazaBushes = [];
+          const pts = [[0.1,0.15],[0.9,0.15],[0.1,0.85],[0.9,0.85]];
+          for (const p of pts){
+            if (Math.random() < 0.85) block.plazaBushes.push({ x: w*p[0], y: h*p[1], r: 11+Math.random()*5 });
           }
-        } else {
-          // окна с случайной "подсветкой" — считаем один раз, а не каждый кадр
-          block.windows = [];
-          for (let wx=10; wx<w-14; wx+=18){
-            for (let wy=14; wy<h-12; wy+=20){
-              block.windows.push({ x:wx, y:wy, lit: Math.random() < 0.38 });
+        } else if (roll < 0.56){
+          // крупный ТЦ на фоне — большое здание под тем же углом, что и точки, с витриной
+          block.type = 'mall_bg'; block.color = grassColors[(i+2) % grassColors.length];
+          block.building = {
+            cx: w*0.5, gy: h*0.9,
+            w: Math.min(w*0.72, 150), wallH: h*0.46, roofH: h*0.2,
+            wall: '#5a4a2e', roof: '#4f6f9e', windows: true, icon: '🏬'
+          };
+        } else if (roll < 0.76){
+          // жилые домики — несколько маленьких домиков сеткой, под тем же углом, что и точки
+          block.type = 'house'; block.color = grassColors[(i+1) % grassColors.length];
+          block.houses = [];
+          const hCols = Math.max(2, Math.round(w/62));
+          const hRows = Math.max(1, Math.round(h/56));
+          for (let hy=0; hy<hRows; hy++){
+            for (let hx=0; hx<hCols; hx++){
+              if (Math.random() < 0.78){
+                const cellW = w/hCols, cellH = h/hRows;
+                block.houses.push({
+                  cx: hx*cellW + cellW*0.5,
+                  gy: hy*cellH + cellH*0.82,
+                  w: cellW*0.56, wallH: cellH*0.4, roofH: cellH*0.36,
+                  wall: houseWalls[Math.floor(Math.random()*houseWalls.length)],
+                  roof: roofColors[Math.floor(Math.random()*roofColors.length)],
+                  style: 'peak'
+                });
+              }
             }
           }
-          block.roofUnits = [];
-          const ru = 1 + Math.floor(Math.random()*2);
-          for (let u=0; u<ru; u++){
-            block.roofUnits.push({ x: 10+Math.random()*(w-26), y: 1, w: 12+Math.random()*8, h: 6 });
+          block.bushes = [];
+          for (let ff=0; ff<Math.round((w*h)/3600); ff++){
+            block.bushes.push({ x: Math.random()*w, y: Math.random()*h, r: 6+Math.random()*4 });
           }
+        } else {
+          // многоквартирное здание — под тем же углом, что и точки, с окнами
+          block.type = 'building'; block.color = grassColors[i % grassColors.length];
+          block.building = {
+            cx: w*0.5, gy: h*0.9,
+            w: Math.min(w*0.5, 60), wallH: h*0.56, roofH: h*0.16,
+            wall: wallColors[Math.floor(Math.random()*wallColors.length)],
+            roof: roofColors[Math.floor(Math.random()*roofColors.length)],
+            windows: true
+          };
         }
         cityBlocks.push(block);
       }
@@ -455,82 +555,85 @@
     ctx.fillStyle = '#555b63'; // общий асфальт
     ctx.fillRect(0,0,W,H);
     ctx.textAlign = 'center';
+    // чтобы фоновые домики/фонтаны не наезжали на торговые точки — точка должна стоять на чистом газоне/асфальте
+    function nearShop(x, y, clear){
+      for (const s of shops){ if (Math.hypot(s.x-x, s.y-y) < clear) return true; }
+      return false;
+    }
     for (const b of cityBlocks){
       ctx.fillStyle = b.color;
       ctx.fillRect(b.x,b.y,b.w,b.h);
 
       if (b.type === 'building'){
-        // крыша/карниз — полоса потемнее, чтобы здание не выглядело плоским прямоугольником
-        ctx.fillStyle = shadeColor(b.color, -28);
-        ctx.fillRect(b.x, b.y, b.w, 7);
-        // окна с рамками, часть светится
-        for (const win of b.windows){
-          ctx.fillStyle = win.lit ? 'rgba(255,214,120,0.9)' : 'rgba(255,255,255,0.14)';
-          ctx.fillRect(b.x+win.x, b.y+win.y, 10, 13);
-          ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(b.x+win.x, b.y+win.y, 10, 13);
+        if (!nearShop(b.x+b.building.cx, b.y+b.building.gy-b.building.wallH*0.5, 68)){
+          drawStandingBuilding(b.x, b.y, b.building);
         }
-        // техника на крыше
-        ctx.fillStyle = '#20242b';
-        for (const ru of b.roofUnits){
-          ctx.fillRect(b.x+ru.x, b.y+ru.y, ru.w, ru.h);
-        }
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(b.x, b.y, b.w, b.h);
       } else if (b.type === 'park'){
-        ctx.font = '18px sans-serif';
-        ctx.fillText('🌳', b.x + b.w*0.28, b.y + b.h*0.5);
-        ctx.fillText('🌳', b.x + b.w*0.62, b.y + b.h*0.38);
-        ctx.fillText('🌳', b.x + b.w*0.45, b.y + b.h*0.72);
-        ctx.font = '14px sans-serif';
-        ctx.fillText('🪑', b.x + b.w*0.78, b.y + b.h*0.6);
+        for (const bs of b.bushes){
+          if (!nearShop(b.x+bs.x, b.y+bs.y, 40)) drawBush(b.x+bs.x, b.y+bs.y, bs.r, '#3f8a3f');
+        }
+        for (const bh of b.benches){
+          if (!nearShop(b.x+bh.x, b.y+bh.y, 40)) drawBench(b.x+bh.x, b.y+bh.y);
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
+        ctx.strokeRect(b.x+2, b.y+2, b.w-4, b.h-4);
       } else if (b.type === 'lot'){
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
         ctx.lineWidth = 2;
         for (let lx=b.x+10; lx<b.x+b.w-10; lx+=26){
           ctx.beginPath(); ctx.moveTo(lx,b.y+6); ctx.lineTo(lx,b.y+b.h-6); ctx.stroke();
         }
+        for (let ly=b.y+22; ly<b.y+b.h-6; ly+=44){
+          ctx.beginPath(); ctx.moveTo(b.x+6,ly); ctx.lineTo(b.x+b.w-6,ly); ctx.stroke();
+        }
         ctx.font = '22px sans-serif';
         for (const pc of b.parkedCars){
+          if (nearShop(pc.x, pc.y, 40)) continue;
           ctx.save();
           ctx.translate(pc.x, pc.y);
           ctx.rotate(pc.rot);
           ctx.fillText(pc.emoji, 0, 8);
           ctx.restore();
         }
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+        ctx.strokeRect(b.x+2, b.y+2, b.w-4, b.h-4);
       } else if (b.type === 'fountain'){
-        // площадь с фонтаном — просто декоративный фон
+        // площадь с фонтаном — мощёная плитка на весь квартал + кусты по краям
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
+        for (let px=b.x+8; px<b.x+b.w; px+=16){
+          ctx.beginPath(); ctx.moveTo(px,b.y+4); ctx.lineTo(px,b.y+b.h-4); ctx.stroke();
+        }
+        for (let py=b.y+8; py<b.y+b.h; py+=16){
+          ctx.beginPath(); ctx.moveTo(b.x+4,py); ctx.lineTo(b.x+b.w-4,py); ctx.stroke();
+        }
         ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
         ctx.strokeRect(b.x+4, b.y+4, b.w-8, b.h-8);
-        ctx.fillStyle = '#5f7fae';
-        ctx.beginPath();
-        ctx.ellipse(b.x+b.w/2, b.y+b.h/2, Math.min(b.w,b.h)*0.28, Math.min(b.w,b.h)*0.22, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.strokeStyle = '#3a4a63'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.font = '26px sans-serif';
-        ctx.fillText('⛲', b.x+b.w/2, b.y+b.h/2+9);
-        ctx.font = '15px sans-serif';
-        ctx.fillText('🌳', b.x+b.w*0.16, b.y+b.h*0.2);
-        ctx.fillText('🌳', b.x+b.w*0.84, b.y+b.h*0.82);
-      } else if (b.type === 'mall_bg'){
-        // крупный торговый центр на фоне (декорация, не игровая точка)
-        ctx.fillStyle = shadeColor(b.color, -20);
-        ctx.fillRect(b.x, b.y, b.w, b.h*0.3);
-        ctx.fillStyle = 'rgba(210,235,255,0.35)';
-        for (let wx=b.x+6; wx<b.x+b.w-14; wx+=16){
-          ctx.fillRect(wx, b.y+b.h*0.4, 10, b.h*0.38);
+        if (!nearShop(b.x+b.w/2, b.y+b.h/2, 60)){
+          ctx.fillStyle = 'rgba(0,0,0,0.2)';
+          ctx.beginPath();
+          ctx.ellipse(b.x+b.w/2+3, b.y+b.h/2+4, Math.min(b.w,b.h)*0.28, Math.min(b.w,b.h)*0.22, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.fillStyle = '#5f9fd6';
+          ctx.beginPath();
+          ctx.ellipse(b.x+b.w/2, b.y+b.h/2, Math.min(b.w,b.h)*0.28, Math.min(b.w,b.h)*0.22, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.strokeStyle = '#3a6a93'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.font = '26px sans-serif';
+          ctx.fillText('⛲', b.x+b.w/2, b.y+b.h/2+9);
         }
-        ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2;
-        ctx.strokeRect(b.x, b.y, b.w, b.h);
-        ctx.font = `${Math.round(Math.min(b.w,b.h)*0.32)}px sans-serif`;
-        ctx.fillText('🏬', b.x+b.w/2, b.y+b.h*0.24);
+        for (const pt of b.plazaBushes){
+          if (!nearShop(b.x+pt.x, b.y+pt.y, 40)) drawBush(b.x+pt.x, b.y+pt.y, pt.r, '#3f8a3f');
+        }
+      } else if (b.type === 'mall_bg'){
+        if (!nearShop(b.x+b.building.cx, b.y+b.building.gy-b.building.wallH*0.5, 78)){
+          drawStandingBuilding(b.x, b.y, b.building);
+        }
       } else if (b.type === 'house'){
-        // просто жилые домики фоном, для разнообразия вместо стены окон
-        ctx.font = '26px sans-serif';
+        for (const bs of b.bushes){
+          if (!nearShop(b.x+bs.x, b.y+bs.y, 40)) drawBush(b.x+bs.x, b.y+bs.y, bs.r, '#3f8a3f');
+        }
         for (const hs of b.houses){
-          ctx.fillText(hs.emoji, b.x+hs.x, b.y+hs.y);
+          if (!nearShop(b.x+hs.cx, b.y+hs.gy-hs.wallH*0.5, 58)) drawStandingBuilding(b.x, b.y, hs);
         }
       }
     }
@@ -554,6 +657,29 @@
     for (const rx of roadsX){ ctx.beginPath(); ctx.moveTo(rx+roadThick/2,0); ctx.lineTo(rx+roadThick/2,H); ctx.stroke(); }
     for (const ry of roadsY){ ctx.beginPath(); ctx.moveTo(0,ry+roadThick/2); ctx.lineTo(W,ry+roadThick/2); ctx.stroke(); }
     ctx.setLineDash([]);
+
+    // пешеходные переходы ("зебра") на каждом перекрёстке — как на референсной картинке
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    const zBand = 15, zGap = 3;
+    function drawCrosswalk(x,y,w,h,vertical){
+      if (vertical){
+        const n = Math.max(3, Math.round(w/9));
+        const step = w/n;
+        for (let k=0;k<n;k++) ctx.fillRect(x+k*step+zGap*0.4, y, step-zGap, h);
+      } else {
+        const n = Math.max(3, Math.round(h/9));
+        const step = h/n;
+        for (let k=0;k<n;k++) ctx.fillRect(x, y+k*step+zGap*0.4, w, step-zGap);
+      }
+    }
+    for (const rx of roadsX){
+      for (const ry of roadsY){
+        drawCrosswalk(rx, ry-zBand-2, roadThick, zBand, true);
+        drawCrosswalk(rx, ry+roadThick+2, roadThick, zBand, true);
+        drawCrosswalk(rx-zBand-2, ry, zBand, roadThick, false);
+        drawCrosswalk(rx+roadThick+2, ry, zBand, roadThick, false);
+      }
+    }
 
     // верхняя полоса — тротуар-плаза вместо голого асфальта (убирает ощущение "пробела" сверху)
     ctx.fillStyle = '#6b7280';
@@ -773,7 +899,7 @@
   function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 
   // ---------------- LEADERBOARD (общий, хранится в бесплатном kvdb.io) ----------------
-  const KVDB_URL = 'https://kvdb.io/MmKaFjKBg62nvsdfAAFXi6/leaderboard';
+  const KVDB_URL = 'https://kvdb.io/Qb5UqRRnZLbKYdmqFsWrH7/leaderboard';
   let leaderboard = []; // {name, score} — синхронизируется с kvdb.io, локально используется как кэш/фолбэк
   let pendingName = ['A','A','A'];
   let nameSlot = 0;
