@@ -898,9 +898,9 @@
 
   function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 
-  // ---------------- LEADERBOARD (общий, хранится в бесплатном kvdb.io) ----------------
-  const KVDB_URL = 'https://kvdb.io/Qb5UqRRnZLbKYdmqFsWrH7/leaderboard';
-  let leaderboard = []; // {name, score} — синхронизируется с kvdb.io, локально используется как кэш/фолбэк
+  // ---------------- LEADERBOARD (общий, хранится в бесплатном jsonblob.com, без регистрации/почты) ----------------
+  const JSONBLOB_URL = 'https://jsonblob.com/api/jsonBlob/019f8dfd-9bec-7115-8367-598afab8afbc';
+  let leaderboard = []; // {name, score} — синхронизируется с jsonblob.com, локально используется как кэш/фолбэк
   let pendingName = ['A','A','A'];
   let nameSlot = 0;
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -912,11 +912,11 @@
   }
   async function syncLeaderboard(){
     try {
-      const res = await fetch(KVDB_URL, { method: 'GET', cache: 'no-store' });
+      const res = await fetch(JSONBLOB_URL, { method: 'GET', cache: 'no-store', headers: { 'Accept': 'application/json' } });
       if (res.ok){
         const text = await res.text();
         const data = JSON.parse(text);
-        if (Array.isArray(data)) leaderboard = data;
+        if (Array.isArray(data)) leaderboard = data.filter(e => e && e.name !== 'TST');
         console.log('[leaderboard] загружено с сервера:', leaderboard);
       } else {
         console.warn('[leaderboard] GET вернул статус', res.status, '— общий рейтинг не обновлён, используем локальный кэш');
@@ -927,8 +927,8 @@
   }
   async function pushLeaderboardToServer(){
     try {
-      const res = await fetch(KVDB_URL, {
-        method: 'POST',
+      const res = await fetch(JSONBLOB_URL, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(leaderboard)
       });
@@ -936,7 +936,7 @@
         console.log('[leaderboard] результат сохранён на сервере');
         setLbStatus('Результат сохранён в общем рейтинге ✓', false);
       } else {
-        console.warn('[leaderboard] POST вернул статус', res.status, '— результат сохранён только локально');
+        console.warn('[leaderboard] PUT вернул статус', res.status, '— результат сохранён только локально');
         setLbStatus('Не удалось сохранить в общий рейтинг (код ' + res.status + '), результат виден только у тебя', true);
       }
     } catch(e){
