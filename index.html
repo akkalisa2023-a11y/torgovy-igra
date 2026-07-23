@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- iOS Safari не поддерживает JS Fullscreen API для обычных страниц — но если добавить сайт
+     на "Домашний экран" (Поделиться → На экран «Домой»), эти теги включают режим без адресной строки -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>АС: Торговый на районе</title>
 <style>
   * { box-sizing: border-box; }
@@ -28,8 +33,13 @@
     border-radius: 8px;
     overflow: hidden;
     /* адаптация под экран: вписываем игру целиком (860x560) в доступную ширину/высоту,
-       сохраняя пропорции — работает и на телефоне в портретной, и в альбомной ориентации */
+       сохраняя пропорции — работает и на телефоне в портретной, и в альбомной ориентации.
+       dvh — это реальная видимая высота (с учётом адресной строки/панели Safari, которая
+       то появляется, то прячется); vh на iOS считает высоту так, будто панелей нет вообще,
+       из-за чего низ экрана (например, кнопка "ПОДТВЕРДИТЬ") мог обрезаться. Сначала пишем
+       через vh как запасной вариант для старых браузеров, затем — через dvh, если он есть. */
     width: min(860px, 100vw, calc((100vh - 12px) * 860 / 560));
+    width: min(860px, 100vw, calc((100dvh - 12px) * 860 / 560));
     aspect-ratio: 860 / 560;
   }
   canvas { display: block; width: 100%; height: 100%; background: #33452f; }
@@ -39,6 +49,23 @@
     background: linear-gradient(180deg, rgba(8,10,10,0.96), rgba(14,17,17,0.97));
     text-align: center;
     padding: 20px;
+    overflow-y: auto; /* если контент не помещается по высоте — можно прокрутить, а не обрезается наглухо */
+    -webkit-overflow-scrolling: touch;
+  }
+  /* компактный режим для невысоких экранов (телефон в альбомной ориентации с панелями браузера) —
+     чтобы кнопка "ПОДТВЕРДИТЬ" и подсказки не уезжали за пределы экрана */
+  @media (max-height: 430px){
+    .overlay { padding: 8px; }
+    .brand-logo { font-size: 20px; padding: 2px 12px; margin-bottom: 3px; }
+    h1 { font-size: 16px; margin: 2px 0 4px; }
+    h2 { font-size: 13px; margin: 3px 0; }
+    p.desc { font-size: 11px; line-height: 1.25; }
+    .letters { gap: 8px; margin: 8px 0; }
+    .letterSlot { width: 34px; height: 42px; font-size: 26px; }
+    .btn { margin-top: 6px; padding: 7px 16px; font-size: 13px; }
+    .keys { font-size: 10px; margin-top: 6px; line-height: 1.4; }
+    .note { font-size: 9px; margin-top: 4px; }
+    #rank { font-size: 15px; margin: 3px 0 1px; }
   }
   .hidden { display: none !important; }
   .brand-logo {
