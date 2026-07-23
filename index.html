@@ -121,9 +121,26 @@
   #btnFight { right: 4%; }
   #btnShake { right: calc(4% + clamp(46px, 10vw, 74px) + 10px); }
   .actionBtn:active { background: rgba(255,255,255,0.85); }
+
+  #rotatePrompt {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #0b1220; z-index: 999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 20px;
+  }
+  #rotatePrompt .icon { font-size: 54px; animation: rotateHint 1.6s ease-in-out infinite; }
+  #rotatePrompt p { color: #cfd6e6; font-size: 16px; max-width: 320px; margin-top: 14px; }
+  @keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
 </style>
 </head>
 <body>
+<div id="rotatePrompt" class="hidden">
+  <div class="icon">📱</div>
+  <p>Поверни телефон в альбомную ориентацию — игра рассчитана на широкий экран.</p>
+</div>
 <div id="wrap">
   <div id="gameContainer">
     <canvas id="c" width="860" height="560"></canvas>
@@ -331,6 +348,43 @@
   // ---------------- TOUCH CONTROLS (мобильные устройства без клавиатуры) ----------------
   const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouchDevice) touchControls.classList.remove('hidden');
+
+  // ---------------- АДАПТАЦИЯ ПОД ЭКРАН ТЕЛЕФОНА: просим повернуть в альбомную ориентацию ----------------
+  const rotatePrompt = document.getElementById('rotatePrompt');
+  let orientationBlocked = false;
+  function updateOrientationUI(){
+    const portrait = window.innerHeight > window.innerWidth;
+    orientationBlocked = isTouchDevice && portrait;
+    rotatePrompt.classList.toggle('hidden', !orientationBlocked);
+  }
+  window.addEventListener('resize', updateOrientationUI);
+  window.addEventListener('orientationchange', updateOrientationUI);
+  updateOrientationUI();
+  function tryLockLandscape(){
+    try {
+      if (screen.orientation && screen.orientation.lock){
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } catch(e){}
+  }
+  // на телефоне сразу пробуем развернуть на весь экран и в альбомную ориентацию при старте — без блокировки, по-тихому
+  function tryAutoFullscreenLandscape(){
+    if (!isTouchDevice) return;
+    try {
+      const el = document.getElementById('wrap');
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+      if (!isFs){
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        if (req){
+          const p = req.call(el);
+          if (p && p.then) p.then(tryLockLandscape).catch(() => {});
+          else tryLockLandscape();
+          return;
+        }
+      }
+      tryLockLandscape();
+    } catch(e){}
+  }
 
   let joyVector = { x: 0, y: 0 };
   let joyPointerId = null;
@@ -1022,6 +1076,7 @@
   startBtn.onclick = () => {
     ensureAudio();
     sfx.start();
+    tryAutoFullscreenLandscape();
     syncLeaderboard();
     resetGame();
     state = 'playing';
@@ -1061,7 +1116,9 @@
     if (!isFullscreen()){
       const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
       if (req) {
-        req.call(el).catch(() => {});
+        const p = req.call(el);
+        if (p && p.then) p.then(tryLockLandscape).catch(() => {});
+        else tryLockLandscape();
       }
     } else {
       const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
@@ -1524,6 +1581,12 @@
 
   function loop(now){
     if (state !== 'playing') return;
+    if (orientationBlocked){
+      // ждём, пока повернут телефон в альбомную ориентацию — таймер не тикает
+      lastTime = now;
+      requestAnimationFrame(loop);
+      return;
+    }
     const dt = Math.min(0.05, (now - lastTime)/1000);
     lastTime = now;
     update(dt);
